@@ -37,9 +37,6 @@ private:
     double current_pose_x = 0.0, current_pose_y = 0.0, current_theta = 0.0;
     double current_vel_x = 0.0, current_vel_y = 0.0, current_omega = 0.0;
 
-    double linear_vel_  = 0.0;
-    double angular_vel_ = 0.0;
-
     int dim = 2;
     vector<Tube> tubes_;
     Time start_time_;

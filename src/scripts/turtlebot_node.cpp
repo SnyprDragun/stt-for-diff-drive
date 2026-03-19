@@ -2,18 +2,12 @@
 
 TurtleBotController::TurtleBotController() : Node("turtlebot_controller")
 {
-    this->declare_parameter("linear_vel",  0.0);
-    this->declare_parameter("angular_vel", 0.0);
-
-    linear_vel_  = this->get_parameter("linear_vel").as_double();
-    angular_vel_ = this->get_parameter("angular_vel").as_double();
-
     vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/odom", 10, bind(&TurtleBotController::odomCallback, this, placeholders::_1));
 
     timer_ = this->create_wall_timer(chrono::milliseconds(100), bind(&TurtleBotController::controlLoop, this));
 
-    RCLCPP_INFO(this->get_logger(), "Controller initiated — v: %.3f m/s | ω: %.3f rad/s", linear_vel_, angular_vel_);
+    RCLCPP_INFO(this->get_logger(), "Controller Initiated!");
 
     string pkg_path = ament_index_cpp::get_package_share_directory("stt-for-diff-drive");
     filesystem::path file_path = pkg_path + "/config/coefficients.csv";
@@ -123,6 +117,9 @@ vector<double> TurtleBotController::trajectory(double t, const vector<double> &C
 
 void TurtleBotController::controlLoop()
 {
+    double linear_vel_  = 0.0;
+    double angular_vel_ = 0.0;
+
     geometry_msgs::msg::Twist cmd;
     double t = (this->now() - start_time_).seconds();
 
@@ -150,7 +147,7 @@ void TurtleBotController::controlLoop()
     double ey = des[1] - current_pose_y;
 
     RCLCPP_INFO(this->get_logger(), "\n\nCurrent State — x: %.3f m | y: %.3f m | θ: %.3f rad \nDesired State — x: %.3f m | y: %.3f m | θ: %.3f rad", 
-                                        current_pose_x, current_pose_y, current_theta, des[0], des[1], atan2(des[1], des[0]));
+                                    current_pose_x, current_pose_y, current_theta, des[0], des[1], atan2(des[1], des[0]));
 
     linear_vel_  = sqrt(ex*ex + ey*ey);
     angular_vel_ = atan2(ey, ex) - current_theta;
