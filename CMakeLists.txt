@@ -5,6 +5,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+find_package(ament_index_cpp REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -27,6 +28,7 @@ ament_target_dependencies(turtlebot_node
   nav_msgs
   tf2
   tf2_geometry_msgs
+  ament_index_cpp
 )
 
 target_link_libraries(turtlebot_node
