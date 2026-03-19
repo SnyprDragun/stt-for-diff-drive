@@ -3,6 +3,7 @@
 #include <cmath>
 #include <string>
 #include <vector>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -43,9 +44,12 @@ private:
     Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
     Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     TimerBase::SharedPtr timer_;
+    ofstream traj_log_;
 
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
     vector<Tube> loadTubeCoefficients(const string &filename);
+    void initLogger();
+    void logState(double t, double des_x, double des_y, double act_x, double act_y, double v, double omega);
     vector<double> trajectory(double t, const vector<double> &C, int degree);
     void controlLoop();
 };

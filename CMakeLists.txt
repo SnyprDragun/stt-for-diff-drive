@@ -22,6 +22,8 @@ target_include_directories(turtlebot_node PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+add_definitions(-DPACKAGE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
 ament_target_dependencies(turtlebot_node
   rclcpp
   geometry_msgs

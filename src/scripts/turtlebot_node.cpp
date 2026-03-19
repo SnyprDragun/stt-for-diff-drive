@@ -14,6 +14,8 @@ TurtleBotController::TurtleBotController() : Node("turtlebot_controller")
     cout << file_path << endl;
     tubes_ = loadTubeCoefficients(file_path);
 
+    initLogger();
+
     start_time_ = this->now();
 }
 
@@ -99,6 +101,30 @@ vector<Tube> TurtleBotController::loadTubeCoefficients(const string &filename)
     return tubes;
 }
 
+void TurtleBotController::initLogger()
+{
+    string log_path = string(PACKAGE_SOURCE_DIR) + "/config/trajectory.csv";
+    filesystem::create_directories(string(PACKAGE_SOURCE_DIR) + "/config/");
+
+    traj_log_.open(log_path, ios::out | ios::trunc);
+    if (!traj_log_.is_open())
+    {
+        RCLCPP_ERROR(this->get_logger(), "Could not open log file: %s", log_path.c_str());
+        return;
+    }
+    traj_log_ << "t,des_x,des_y,act_x,act_y,v,omega\n";
+    RCLCPP_INFO(this->get_logger(), "Logging to: %s", log_path.c_str());
+}
+
+void TurtleBotController::logState(double t, double des_x, double des_y, double act_x, double act_y, double v, double omega)
+{
+    if (traj_log_.is_open())
+        traj_log_ << fixed << setprecision(6)
+                  << t      << "," << des_x << "," << des_y << ","
+                  << act_x  << "," << act_y << ","
+                  << v      << "," << omega << "\n";
+}
+
 vector<double> TurtleBotController::trajectory(double t, const vector<double> &C, int degree)
 {
     vector<double> result(dim, 0.0);
@@ -135,7 +161,19 @@ void TurtleBotController::controlLoop()
 
     if (!active_tube)
     {
-        vel_pub_->publish(geometry_msgs::msg::Twist());
+        // ── All tubes finished — stop robot, flush log, shutdown ─────────────
+        vel_pub_->publish(geometry_msgs::msg::Twist());   // zero velocity
+
+        if (traj_log_.is_open())
+        {
+            traj_log_.flush();
+            traj_log_.close();
+            RCLCPP_INFO(this->get_logger(), "Trajectory log closed.");
+        }
+
+        timer_->cancel();   // stop the control loop timer
+        RCLCPP_INFO(this->get_logger(), "All tubes complete. Shutting down.");
+        rclcpp::shutdown();
         return;
     }
 
@@ -143,16 +181,55 @@ void TurtleBotController::controlLoop()
 
     auto des = trajectory(t, active_tube->coefficients, degree);
 
-    double ex = des[0] - current_pose_x;
-    double ey = des[1] - current_pose_y;
+    // double ex = des[0] - current_pose_x;
+    // double ey = des[1] - current_pose_y;
 
     RCLCPP_INFO(this->get_logger(), "\n\nCurrent State — x: %.3f m | y: %.3f m | θ: %.3f rad \nDesired State — x: %.3f m | y: %.3f m | θ: %.3f rad", 
                                     current_pose_x, current_pose_y, current_theta, des[0], des[1], atan2(des[1], des[0]));
 
-    linear_vel_  = sqrt(ex*ex + ey*ey);
-    angular_vel_ = atan2(ey, ex) - current_theta;
+    // /*------------------------------- CONTROLLER - A -------------------------------*/
+    // linear_vel_  = sqrt(ex*ex + ey*ey);
+    // angular_vel_ = atan2(ey, ex) - current_theta;
+
+    /*------------------------------- CONTROLLER - B -------------------------------*/
+    const double MAX_V = 0.8;
+    const double MAX_W = 1.5;
+    const double k     = 0.5;
+
+    // ── Error: actual - desired (matches paper convention e = γ_m⁻¹(2x - γ_s)) ──
+    double ex = current_pose_x - des[0];
+    double ey = current_pose_y - des[1];
+
+    double normalized_error_x = clamp(ex / 1.0, -0.999, 0.999);
+    double normalized_error_y = clamp(ey / 1.0, -0.999, 0.999);
+
+    // ── Transformed error ε_i = ln((1 + e_i) / (1 - e_i)) ───────────────────────
+    double eps_x = log((1.0 + normalized_error_x) / (1.0 - normalized_error_x));
+    double eps_y = log((1.0 + normalized_error_y) / (1.0 - normalized_error_y));
+
+    // ── ξ_ii = 4 / (1 - e_i²) ────────────────────────────────────────────────────
+    double xi_x = 4.0 / (1.0 - normalized_error_x * normalized_error_x);
+    double xi_y = 4.0 / (1.0 - normalized_error_y * normalized_error_y);
+
+    // ── Cartesian control: u = -k * ξ * ε ────────────────────────────────────────
+    double u_x = -k * xi_x * eps_x;
+    double u_y = -k * xi_y * eps_y;
+
+    // ── Map to differential drive ─────────────────────────────────────────────────
+    double desired_heading = atan2(u_y, u_x);
+    double heading_err     = atan2(sin(desired_heading - current_theta),
+                                        cos(desired_heading - current_theta));
+
+    double v     = sqrt(u_x*u_x + u_y*u_y) * cos(heading_err);
+    double omega = heading_err;   // direct heading error as angular rate
+
+    linear_vel_  = clamp(v,     -MAX_V, MAX_V);
+    angular_vel_ = clamp(omega, -MAX_W, MAX_W);
+
+    logState(t, des[0], des[1], current_pose_x, current_pose_y, linear_vel_, angular_vel_);
 
     cmd.linear.x  = linear_vel_;
     cmd.angular.z = angular_vel_;
     vel_pub_->publish(cmd);
+
 }
