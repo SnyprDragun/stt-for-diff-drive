@@ -15,7 +15,11 @@ TurtleBotController::TurtleBotController() : Node("turtlebot_controller")
 
     RCLCPP_INFO(this->get_logger(), "Controller initiated — v: %.3f m/s | ω: %.3f rad/s", linear_vel_, angular_vel_);
 
-    tubes_ = loadTubeCoefficients("/home/focaslab/ros2_ws/src/stt-for-diff-drive/coefficients.csv");
+    string pkg_path = ament_index_cpp::get_package_share_directory("stt-for-diff-drive");
+    filesystem::path file_path = pkg_path + "/config/coefficients.csv";
+    cout << file_path << endl;
+    tubes_ = loadTubeCoefficients(file_path);
+
     start_time_ = this->now();
 }
 
@@ -101,7 +105,7 @@ vector<Tube> TurtleBotController::loadTubeCoefficients(const string &filename)
     return tubes;
 }
 
-vector<double> TurtleBotController::realGammas(double t, const vector<double> &C, int degree)
+vector<double> TurtleBotController::trajectory(double t, const vector<double> &C, int degree)
 {
     vector<double> result(dim, 0.0);
 
@@ -117,43 +121,9 @@ vector<double> TurtleBotController::realGammas(double t, const vector<double> &C
     return result;
 }
 
-vector<Waypoint> TurtleBotController::getTubeWaypoints(const vector<Tube> &tubes, double dt)
-{
-    vector<Waypoint> waypoints;
-
-    for (size_t tube_idx = 0; tube_idx < tubes.size(); ++tube_idx)
-    {
-        const auto &tube   = tubes[tube_idx];
-        const auto &coeffs = tube.coefficients;
-
-        int num_coeffs = static_cast<int>(coeffs.size());
-        if (num_coeffs % dim != 0)
-        {
-            cerr << "Error: Tube " << tube_idx
-                      << " coefficients (" << num_coeffs
-                      << ") not divisible by dim (" << dim << "). Skipping.\n";
-            continue;
-        }
-
-        int degree = (num_coeffs / dim) - 1;
-        cout << "Tube " << tube_idx
-                  << ": degree=" << degree
-                  << "  t=[" << tube.start_time << ", " << tube.end_time << "]\n";
-
-        for (double t = tube.start_time; t <= tube.end_time + 1e-9; t += dt)
-        {
-            Waypoint wp;
-            wp.t        = t;
-            wp.position = realGammas(t, coeffs, degree);
-            waypoints.push_back(wp);
-        }
-    }
-
-    return waypoints;
-}
-
 void TurtleBotController::controlLoop()
 {
+    geometry_msgs::msg::Twist cmd;
     double t = (this->now() - start_time_).seconds();
 
     const Tube* active_tube = nullptr;
@@ -174,7 +144,7 @@ void TurtleBotController::controlLoop()
 
     int degree = (static_cast<int>(active_tube->coefficients.size()) / dim) - 1;
 
-    auto des = realGammas(t, active_tube->coefficients, degree);
+    auto des = trajectory(t, active_tube->coefficients, degree);
 
     double ex = des[0] - current_pose_x;
     double ey = des[1] - current_pose_y;
