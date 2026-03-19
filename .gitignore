@@ -1,5 +1,5 @@
 # Byte-compiled / optimized / DLL files
-__pycache__/
+src/__pycache__/
 *.py[codz]
 *$py.class
 
@@ -155,6 +155,7 @@ venv.bak/
 /site
 
 # mypy
+*.json
 .mypy_cache/
 .dmypy.json
 dmypy.json
