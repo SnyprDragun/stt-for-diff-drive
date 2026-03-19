@@ -17,7 +17,6 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include "tube.hpp"
-#include "setpoint.hpp"
 
 using namespace std;
 using namespace tf2;
