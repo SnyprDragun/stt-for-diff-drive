@@ -49,6 +49,14 @@ We have two phases for this implementation:
 - To see the plots of how the simulated trajectory fared against the reference path, run `plot_trajectory.py`.
 - All the plots can also be found in the `\media` folder.
 
+## Trajectory Generation
+![](./media/phase_plot.png)
+![](./media/time_plots.png)
+
+## Simulation 
+![](./media/trajectory_phase.png)
+![](./media/trajectory_time.png)
+
 ## Reference Article
 ```bibtex
 @misc{das2025spatiotemporaltubesdifferentialdrive,
