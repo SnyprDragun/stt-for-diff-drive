@@ -22,18 +22,29 @@ if __name__ == "__main__":
     pipeline = TubePipeline(dimension=2, time_step=0.1, output_csv="config/coefficients.csv")
 
     pipeline.add(TubeSpec(
-        t_start=0, t_end=11, degree=1,
+        t_start=0, t_end=15, degree=1,
         reach_constraints=[
             # Format: (x1_lo, x1_hi, x2_lo, x2_hi, t_start, t_end)
             (0.0, 1.0,  0.0, 1.0,  0,  1),    # start region
-            (5.0, 6.0,  3.0, 4.0,  10, 11),   # end region
+            (2.0, 3.0,  8.0, 9.0,  14, 15),   # end region
         ]
     ))
-
     pipeline.add(TubeSpec(
-        t_start=11, t_end=20, degree=3,
+        t_start=15, t_end=30, degree=3,
         reach_constraints=[
-            (9.0, 10.0,  9.0, 10.0,  19, 20),  # end region
+            (4.0, 5.0,  3.0, 4.0,  29, 30),  # end region
+        ]
+    ))
+    pipeline.add(TubeSpec(
+        t_start=30, t_end=45, degree=3,
+        reach_constraints=[
+            (6.0, 7.0,  8.0, 9.0,  44, 45),  # end region
+        ]
+    ))
+    pipeline.add(TubeSpec(
+        t_start=45, t_end=60, degree=3,
+        reach_constraints=[
+            (8.0, 9.0,  3.0, 4.0,  59, 60),  # end region
         ]
     ))
 
