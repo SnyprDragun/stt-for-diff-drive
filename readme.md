@@ -36,15 +36,17 @@ We have two phases for this implementation:
 
 **Phase-1:** Tube Generation
 - The python files inside `src` can be used to generate STT for any given temporal reach-avoid task. 
-- `main.py` is the primary executable where the specification has to be mentioned. Running this file saves the generated tube coefficients into `config/coeffeicients.csv`.
+- `main.py` is the primary executable where the specification has to be mentioned. Running this file saves the generated tube coefficients into `config/coeffeicients.csv`. Usage: Run `python3 src/main.py` from package root.
+- In the current example, small tube sections satisfying one reach setpoint, have been joined to accomplish the overall specification. But the design is robust enough to have one continuous tube for the entire task. Only drawback is increment in computation time.
 - Once the tubes are ready, we can move on to simulation directly.
 
 **Phase-2:** Simulation
 - The ROS files are inside `src/scripts`. `main.cpp` is our executable and initializes the ros node for turtlebot3. 
-- `main.cpp` directly sources the `config/coeffeicients.csv` file to load the reference trajectory.
+- `turtlebot_node.cpp` directly sources the `config/coeffeicients.csv` file to load the reference trajectory.
+- Before running the simulation we have to ensure that the timestamps used for tube generation matches those in the `turtlebot_node.hpp` file. For now there is no direct transfer of this parameter and has to be handcoded.
 - Steps are launching turtlebot in empty gazebo world and then running 
     ```
-    ros2 run stt-for-diff-drive main
+    ros2 run stt-for-diff-drive turtlebot_node
     ```
 - To see the plots of how the simulated trajectory fared against the reference path, run `plot_trajectory.py`.
 - All the plots can also be found in the `\media` folder.
