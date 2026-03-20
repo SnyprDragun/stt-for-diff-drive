@@ -14,6 +14,27 @@ TurtleBotController::TurtleBotController() : Node("turtlebot_controller")
     cout << file_path << endl;
     tubes_ = loadTubeCoefficients(file_path);
 
+    QoS marker_qos(10);
+    marker_qos.transient_local();
+
+    tube_marker_pub_  = this->create_publisher<visualization_msgs::msg::Marker>(
+        "/tube_centreline", marker_qos);   // was /tube_markers
+
+    actual_path_pub_  = this->create_publisher<nav_msgs::msg::Path>(
+        "/robot_actual_path", 10);         // was /actual_path
+
+    desired_path_pub_ = this->create_publisher<nav_msgs::msg::Path>(
+        "/robot_desired_path", 10);        // was /desired_path
+    actual_path_.header.frame_id  = "odom";
+    desired_path_.header.frame_id = "odom";
+
+    marker_timer_ = this->create_wall_timer(
+        chrono::seconds(1),
+        [this]() {
+            publishTubeMarkers();
+            marker_timer_->cancel();
+        });
+
     initLogger();
 
     start_time_ = this->now();
@@ -101,6 +122,71 @@ vector<Tube> TurtleBotController::loadTubeCoefficients(const string &filename)
     return tubes;
 }
 
+void TurtleBotController::publishTubeMarkers()
+{
+    int marker_id = 0;
+    for (const auto &tube : tubes_)
+    {
+        if (tube.coefficients.empty()) continue;
+
+        int degree = (static_cast<int>(tube.coefficients.size()) / dim) - 1;
+
+        visualization_msgs::msg::Marker marker;
+        marker.header.frame_id = "odom";
+        marker.header.stamp    = this->now();
+        marker.ns              = "tubes";
+        marker.id              = marker_id++;
+        marker.type            = visualization_msgs::msg::Marker::LINE_STRIP;
+        marker.action          = visualization_msgs::msg::Marker::ADD;
+        marker.scale.x         = 0.02;
+        marker.color.r         = 0.0f;
+        marker.color.g         = 0.6f;
+        marker.color.b         = 1.0f;
+        marker.color.a         = 1.0f;
+        marker.pose.orientation.w = 1.0;
+
+        for (double t = tube.start_time; t <= tube.end_time + 1e-9; t += 0.1)
+        {
+            auto pos = trajectory(t, tube.coefficients, degree);
+            geometry_msgs::msg::Point p;
+            p.x = pos[0];
+            p.y = pos[1];
+            p.z = 0.0;
+            marker.points.push_back(p);
+        }
+
+        tube_marker_pub_->publish(marker);
+    }
+    RCLCPP_INFO(this->get_logger(), "Published %d tube marker(s).", marker_id);
+}
+
+void TurtleBotController::updatePaths(double des_x, double des_y)
+{
+    auto stamp = this->now();
+
+    /*---------------- Actual pose ----------------*/
+    geometry_msgs::msg::PoseStamped act_pose;
+    act_pose.header.stamp    = stamp;
+    act_pose.header.frame_id = "odom";
+    act_pose.pose.position.x = current_pose_x;
+    act_pose.pose.position.y = current_pose_y;
+    act_pose.pose.orientation.w = 1.0;
+    actual_path_.header.stamp = stamp;
+    actual_path_.poses.push_back(act_pose);
+    actual_path_pub_->publish(actual_path_);
+
+    /*---------------- Desired pose ----------------*/
+    geometry_msgs::msg::PoseStamped des_pose;
+    des_pose.header.stamp    = stamp;
+    des_pose.header.frame_id = "odom";
+    des_pose.pose.position.x = des_x;
+    des_pose.pose.position.y = des_y;
+    des_pose.pose.orientation.w = 1.0;
+    desired_path_.header.stamp = stamp;
+    desired_path_.poses.push_back(des_pose);
+    desired_path_pub_->publish(desired_path_);
+}
+
 void TurtleBotController::initLogger()
 {
     string log_path = string(PACKAGE_SOURCE_DIR) + "/config/trajectory.csv";
@@ -161,8 +247,7 @@ void TurtleBotController::controlLoop()
 
     if (!active_tube)
     {
-        // ── All tubes finished — stop robot, flush log, shutdown ─────────────
-        vel_pub_->publish(geometry_msgs::msg::Twist());   // zero velocity
+        vel_pub_->publish(geometry_msgs::msg::Twist());
 
         if (traj_log_.is_open())
         {
@@ -171,7 +256,7 @@ void TurtleBotController::controlLoop()
             RCLCPP_INFO(this->get_logger(), "Trajectory log closed.");
         }
 
-        timer_->cancel();   // stop the control loop timer
+        timer_->cancel();
         RCLCPP_INFO(this->get_logger(), "All tubes complete. Shutting down.");
         rclcpp::shutdown();
         return;
@@ -181,13 +266,12 @@ void TurtleBotController::controlLoop()
 
     auto des = trajectory(t, active_tube->coefficients, degree);
 
-    // double ex = des[0] - current_pose_x;
-    // double ey = des[1] - current_pose_y;
-
     RCLCPP_INFO(this->get_logger(), "\n\nCurrent State — x: %.3f m | y: %.3f m | θ: %.3f rad \nDesired State — x: %.3f m | y: %.3f m | θ: %.3f rad", 
                                     current_pose_x, current_pose_y, current_theta, des[0], des[1], atan2(des[1], des[0]));
 
-    // /*------------------------------- CONTROLLER - A -------------------------------*/
+    /*------------------------------- CONTROLLER - A -------------------------------*/
+    // double ex = des[0] - current_pose_x;
+    // double ey = des[1] - current_pose_y;
     // linear_vel_  = sqrt(ex*ex + ey*ey);
     // angular_vel_ = atan2(ey, ex) - current_theta;
 
@@ -196,7 +280,6 @@ void TurtleBotController::controlLoop()
     const double MAX_W = 1.5;
     const double k     = 0.5;
 
-    // ── Error: actual - desired (matches paper convention e = γ_m⁻¹(2x - γ_s)) ──
     double ex = current_pose_x - des[0];
     double ey = current_pose_y - des[1];
 
@@ -217,19 +300,18 @@ void TurtleBotController::controlLoop()
 
     // ── Map to differential drive ─────────────────────────────────────────────────
     double desired_heading = atan2(u_y, u_x);
-    double heading_err     = atan2(sin(desired_heading - current_theta),
-                                        cos(desired_heading - current_theta));
+    double heading_err = atan2(sin(desired_heading - current_theta), cos(desired_heading - current_theta));
 
     double v     = sqrt(u_x*u_x + u_y*u_y) * cos(heading_err);
-    double omega = heading_err;   // direct heading error as angular rate
+    double omega = heading_err; 
 
     linear_vel_  = clamp(v,     -MAX_V, MAX_V);
     angular_vel_ = clamp(omega, -MAX_W, MAX_W);
 
+    updatePaths(des[0], des[1]);
     logState(t, des[0], des[1], current_pose_x, current_pose_y, linear_vel_, angular_vel_);
 
     cmd.linear.x  = linear_vel_;
     cmd.angular.z = angular_vel_;
     vel_pub_->publish(cmd);
-
 }
