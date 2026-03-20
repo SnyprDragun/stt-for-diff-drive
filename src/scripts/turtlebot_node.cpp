@@ -18,13 +18,13 @@ TurtleBotController::TurtleBotController() : Node("turtlebot_controller")
     marker_qos.transient_local();
 
     tube_marker_pub_  = this->create_publisher<visualization_msgs::msg::Marker>(
-        "/tube_centreline", marker_qos);   // was /tube_markers
+        "/tube_centre", marker_qos);   // was /tube_markers
 
     actual_path_pub_  = this->create_publisher<nav_msgs::msg::Path>(
-        "/robot_actual_path", 10);         // was /actual_path
+        "/actual_path", 10);         // was /actual_path
 
     desired_path_pub_ = this->create_publisher<nav_msgs::msg::Path>(
-        "/robot_desired_path", 10);        // was /desired_path
+        "/desired_path", 10);        // was /desired_path
     actual_path_.header.frame_id  = "odom";
     desired_path_.header.frame_id = "odom";
 
