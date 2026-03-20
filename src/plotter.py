@@ -29,8 +29,7 @@ class Plotter:
                 power += 1
         return result
 
-    def plot(self, tubes: list, title: str = "Generated Trajectory",
-             time_label_interval: float = 5.0):
+    def plot(self, tubes: list, title: str = "Generated Trajectory", time_label_interval: float = 5.0, setpoints: list = None):
         """
         tubes: list of [coeffs, t_start, t_end]
 
@@ -119,6 +118,24 @@ class Plotter:
                     ax_xy.annotate(f"t={t_tick:.0f}s", xy=(x_tick, y_tick),
                                    xytext=(6, 6), textcoords='offset points',
                                    fontsize=8, color='black', zorder=5)
+
+            # ── Draw setpoints and obstacles ─────────────────────────────────────
+            if setpoints:
+                for sp in setpoints:
+                    pt   = sp["bounds"]
+                    kind = sp["type"]
+                    # pt format: [x_lo, x_hi, y_lo, y_hi, t_start, t_end]
+                    x_lo, x_hi = pt[0], pt[1]
+                    y_lo, y_hi = pt[2], pt[3]
+                    color  = "green" if kind == "setpoint" else "red"
+                    alpha  = 0.25
+                    width  = x_hi - x_lo
+                    height = y_hi - y_lo
+                    rect = plt.Rectangle((x_lo, y_lo), width, height,
+                                        linewidth=1.5, edgecolor=color,
+                                        facecolor=color, alpha=alpha,
+                                        label=kind.capitalize() if sp == setpoints[0] else "")
+                    ax_xy.add_patch(rect)
 
                 # ── Start / end markers ───────────────────────────────────────
                 ax_xy.scatter(xs[0],  ys[0],  marker='o', s=80, color='green', zorder=5,

@@ -48,5 +48,5 @@ if __name__ == "__main__":
         ]
     ))
 
-    tubes = pipeline.run()
-    Plotter(dim=2).plot(tubes, title="Generated Trajectory for Turtlebot")
+tubes, setpoints = pipeline.run()
+Plotter(dim=2).plot(tubes, title="Generated Trajectory for Turtlebot", setpoints=setpoints)

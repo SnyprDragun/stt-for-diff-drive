@@ -44,25 +44,26 @@ class TubePipeline:
         self._specs.append(spec)
         return self
 
-    def run(self) -> list:
+    def run(self) -> tuple:
         """
         Solve all tubes in order, joining continuity constraints between them.
-        Returns list of [coeffs, t_start, t_end] ready for the plotter.
+        Returns:
+            tubes:     list of [coeffs, t_start, t_end]
+            setpoints: list of [args, tube_idx] for all reach constraints
         """
         global_start = time.time()
         open(self.output_csv, 'w').close()
 
         prev_solver: Optional[Generate_STT] = None
         prev_coeffs: Optional[list]         = None
+        all_setpoints = []
 
         for idx, spec in enumerate(self._specs):
             print(f"\n{'='*60}")
             print(f"  Tube {idx}  |  degree={spec.degree}  |  t=[{spec.t_start}, {spec.t_end}]")
             print(f"{'='*60}")
 
-            solver = Generate_STT(degree=spec.degree,
-                                  dimension=self.dimension,
-                                  time_step=self.time_step)
+            solver = Generate_STT(degree=spec.degree, dimension=self.dimension, time_step=self.time_step)
 
             for args in spec.reach_constraints:
                 apply_constraints(solver, [reach(solver, *args)])
@@ -76,6 +77,10 @@ class TubePipeline:
 
             if solver.flag:
                 self._save_tube(coeffs, spec, append=(idx > 0))
+                for pt in solver.setpoints:
+                    all_setpoints.append({"bounds": pt, "tube_idx": idx, "type": "setpoint"})
+                for pt in solver.obstacles:
+                    all_setpoints.append({"bounds": pt, "tube_idx": idx, "type": "obstacle"})
             else:
                 print(f"Tube {idx} failed — stopping pipeline.")
                 break
@@ -86,8 +91,10 @@ class TubePipeline:
         print(f"\nTotal pipeline time: ", end="")
         Generate_STT(1, 1, 0.1)._display_time(global_start, time.time())
 
-        return [[self._coeffs[i], self._specs[i].t_start, self._specs[i].t_end]
+        tubes = [[self._coeffs[i], self._specs[i].t_start, self._specs[i].t_end]
                 for i in range(len(self._coeffs)) if self._solvers[i].flag]
+
+        return tubes, all_setpoints
 
     # ── CSV persistence ───────────────────────────────────────────────────────
 
