@@ -17,14 +17,10 @@ TurtleBotController::TurtleBotController() : Node("turtlebot_controller")
     QoS marker_qos(10);
     marker_qos.transient_local();
 
-    tube_marker_pub_  = this->create_publisher<visualization_msgs::msg::Marker>(
-        "/tube_centre", marker_qos);   // was /tube_markers
+    tube_marker_pub_  = this->create_publisher<visualization_msgs::msg::Marker>("/tube_markers", marker_qos);
+    actual_path_pub_  = this->create_publisher<nav_msgs::msg::Path>("/actual_path", 10);
+    desired_path_pub_ = this->create_publisher<nav_msgs::msg::Path>("/desired_path", 10);
 
-    actual_path_pub_  = this->create_publisher<nav_msgs::msg::Path>(
-        "/actual_path", 10);         // was /actual_path
-
-    desired_path_pub_ = this->create_publisher<nav_msgs::msg::Path>(
-        "/desired_path", 10);        // was /desired_path
     actual_path_.header.frame_id  = "odom";
     desired_path_.header.frame_id = "odom";
 
@@ -170,7 +166,7 @@ void TurtleBotController::updatePaths(double des_x, double des_y)
     act_pose.header.frame_id = "odom";
     act_pose.pose.position.x = current_pose_x;
     act_pose.pose.position.y = current_pose_y;
-    act_pose.pose.orientation.w = 1.0;
+    act_pose.pose.orientation.w = atan2(current_pose_y, current_pose_x);
     actual_path_.header.stamp = stamp;
     actual_path_.poses.push_back(act_pose);
     actual_path_pub_->publish(actual_path_);
@@ -181,7 +177,7 @@ void TurtleBotController::updatePaths(double des_x, double des_y)
     des_pose.header.frame_id = "odom";
     des_pose.pose.position.x = des_x;
     des_pose.pose.position.y = des_y;
-    des_pose.pose.orientation.w = 1.0;
+    des_pose.pose.orientation.w = atan2(des_y, des_x);
     desired_path_.header.stamp = stamp;
     desired_path_.poses.push_back(des_pose);
     desired_path_pub_->publish(desired_path_);
